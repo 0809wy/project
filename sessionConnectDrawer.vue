@@ -216,8 +216,82 @@ import conversationList from './conversationList.vue';
         },
         methods: {
             handleSortChange(column,prop,order) {
-                
-            },
+				// 兼容不同事件签名：可能是 (column, prop, order) 或 ({ column, prop, order })
+				const sortProp = prop || (column && (column.prop || column.property)) || (column && column.prop);
+				let sortOrder = order || (column && column.order);
+				if (typeof sortOrder === 'string') {
+					sortOrder = sortOrder.toLowerCase();
+					if (sortOrder === 'asc') sortOrder = 'ascending';
+					if (sortOrder === 'desc') sortOrder = 'descending';
+				}
+
+				// 未指定排序或清空排序：恢复筛选后的原始顺序
+				if (!sortProp || !sortOrder) {
+					this.applyFilter();
+					// 保持当前页有效
+					const maxPage = Math.max(1, Math.ceil(this.displayConnectionList.length / this.tablePage.size));
+					if (this.tablePage.current > maxPage) this.tablePage.current = maxPage;
+					this.rebuildPagedData();
+					return;
+				}
+
+				const isNullish = (v) => v === undefined || v === null || v === '';
+				const tryParseNumber = (v) => {
+					if (typeof v === 'number') return v;
+					const n = Number(v);
+					return Number.isNaN(n) ? null : n;
+				};
+				const tryParseDate = (v) => {
+					if (v instanceof Date) return v.getTime();
+					if (typeof v === 'string' || typeof v === 'number') {
+						const t = Date.parse(v);
+						return Number.isNaN(t) ? null : t;
+					}
+					return null;
+				};
+
+				const compare = (a, b) => {
+					const av = a[sortProp];
+					const bv = b[sortProp];
+					const aNull = isNullish(av);
+					const bNull = isNullish(bv);
+					if (aNull && bNull) return 0;
+					if (aNull) return 1; // 空值永远排最后
+					if (bNull) return -1;
+
+					// 数字比较（包含可转数字的字符串）
+					const an = tryParseNumber(av);
+					const bn = tryParseNumber(bv);
+					if (an !== null && bn !== null) {
+						if (an === bn) return 0;
+						return an < bn ? -1 : 1;
+					}
+
+					// 日期时间比较
+					const ad = tryParseDate(av);
+					const bd = tryParseDate(bv);
+					if (ad !== null && bd !== null) {
+						if (ad === bd) return 0;
+						return ad < bd ? -1 : 1;
+					}
+
+					// 字符串比较（不区分大小写）
+					const as = String(av).toLowerCase();
+					const bs = String(bv).toLowerCase();
+					if (as === bs) return 0;
+					return as < bs ? -1 : 1;
+				};
+
+				const sorted = (this.displayConnectionList || []).slice().sort((a, b) => {
+					const base = compare(a, b);
+					return sortOrder === 'ascending' ? base : -base;
+				});
+
+				this.displayConnectionList = sorted;
+				// 改变排序后回到第一页
+				this.tablePage.current = 1;
+				this.rebuildPagedData();
+			},
             handleClose() {
                 this.$emit('closeSesstionDrwer')
             },
