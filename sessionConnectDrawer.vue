@@ -215,8 +215,52 @@ import conversationList from './conversationList.vue';
             }
         },
         methods: {
-            handleSortChange(column,prop,order) {
+            handleSortChange(column, prop, order) {
+                // 如果没有排序属性或者没有数据，直接返回
+                if (!prop || !this.displayConnectionList.length) {
+                    return;
+                }
+
+                // 根据排序规则对显示列表进行排序
+                this.displayConnectionList.sort((a, b) => {
+                    let aVal = a[prop];
+                    let bVal = b[prop];
+
+                    // 处理空值
+                    if (aVal === null || aVal === undefined) aVal = '';
+                    if (bVal === null || bVal === undefined) bVal = '';
+
+                    // 如果是时间字段，转换为时间戳进行比较
+                    if (prop === 'connectTime') {
+                        aVal = new Date(aVal).getTime() || 0;
+                        bVal = new Date(bVal).getTime() || 0;
+                    }
+
+                    // 数值类型比较
+                    if (typeof aVal === 'number' && typeof bVal === 'number') {
+                        if (order === 'ascending') {
+                            return aVal - bVal;
+                        } else {
+                            return bVal - aVal;
+                        }
+                    }
+
+                    // 字符串类型比较
+                    const aStr = String(aVal).toLowerCase();
+                    const bStr = String(bVal).toLowerCase();
+                    
+                    if (order === 'ascending') {
+                        return aStr.localeCompare(bStr);
+                    } else {
+                        return bStr.localeCompare(aStr);
+                    }
+                });
+
+                // 排序后回到第一页
+                this.tablePage.current = 1;
                 
+                // 重新构建分页数据
+                this.rebuildPagedData();
             },
             handleClose() {
                 this.$emit('closeSesstionDrwer')
